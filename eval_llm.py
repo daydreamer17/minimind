@@ -44,6 +44,8 @@ def main():
     parser.add_argument('--top_p', default=0.95, type=float, help="nucleus采样阈值（0-1）")
     parser.add_argument('--open_thinking', default=0, type=int, help="是否开启自适应思考（0=否，1=是）")
     parser.add_argument('--historys', default=0, type=int, help="携带历史对话轮数（需为偶数，0表示不携带历史）")
+    parser.add_argument('--enable_thinking', default=None, type=int, choices=[0, 1],
+                        help="是否显式启用thinking模式（默认对reason/ppo_actor*/grpo/spo自动启用）")
     parser.add_argument('--show_speed', default=1, type=int, help="显示decode速度（tokens/s）")
     parser.add_argument('--device', default='cuda' if torch.cuda.is_available() else 'cpu', type=str, help="运行设备")
     args = parser.parse_args()
@@ -70,10 +72,17 @@ def main():
         if input_mode == 0: print(f'💬: {prompt}')
         conversation = conversation[-args.historys:] if args.historys else []
         conversation.append({"role": "user", "content": prompt})
+        reasoning_weights = {'reason', 'grpo', 'spo'}
+        open_thinking = bool(args.open_thinking)
+        if args.enable_thinking is not None:
+            open_thinking = bool(args.enable_thinking)
+        elif args.weight in reasoning_weights or args.weight.startswith('ppo_actor'):
+            open_thinking = True
+
         if 'pretrain' in args.weight:
             inputs = tokenizer.bos_token + prompt
         else:
-            inputs = tokenizer.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True, open_thinking=bool(args.open_thinking))
+            inputs = tokenizer.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True, open_thinking=open_thinking)
         
         inputs = tokenizer(inputs, return_tensors="pt", truncation=True).to(args.device)
 

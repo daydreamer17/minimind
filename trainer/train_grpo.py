@@ -222,14 +222,14 @@ if __name__ == "__main__":
     parser.add_argument('--use_moe', default=0, type=int, choices=[0, 1], help="是否使用MoE架构（0=否，1=是）")
     parser.add_argument('--max_seq_len', default=768, type=int, help="Prompt最大长度")
     parser.add_argument("--max_gen_len", type=int, default=1024, help="生成的最大长度")
-    parser.add_argument("--data_path", type=str, default="../dataset/rlaif.jsonl", help="RLAIF数据路径")
+    parser.add_argument("--data_path", type=str, default="/root/autodl-tmp/dir/rlaif-mini.jsonl", help="RLAIF数据路径")
     parser.add_argument("--num_generations", type=int, default=6, help="每个prompt生成的样本数")
     parser.add_argument("--beta", type=float, default=0.1, help="KL惩罚系数")
     parser.add_argument("--loss_type", type=str, default="cispo", choices=["grpo", "cispo"], help="loss类型")
     parser.add_argument("--epsilon", type=float, default=0.2, help="GRPO的PPO clip epsilon")
     parser.add_argument("--epsilon_high", type=float, default=5.0, help="epsilon上界")
     parser.add_argument('--from_weight', default='full_sft', type=str, help="基于哪个权重训练")
-    parser.add_argument("--reward_model_path", type=str, default="../../internlm2-1_8b-reward", help="Reward模型路径")
+    parser.add_argument("--reward_model_path", type=str, default="/root/autodl-tmp/internlm2-1_8b-reward", help="Reward模型路径")
     parser.add_argument('--from_resume', default=0, type=int, choices=[0, 1], help="是否自动检测&续训（0=否，1=是）")
     parser.add_argument("--use_wandb", action="store_true", help="是否使用wandb")
     parser.add_argument("--wandb_project", type=str, default="MiniMind-GRPO", help="wandb项目名")
@@ -262,7 +262,7 @@ if __name__ == "__main__":
     # ========== 4. 配wandb ==========
     wandb = None
     if args.use_wandb and is_main_process():
-        import swanlab as wandb
+        import wandb
         wandb_id = ckp_data.get('wandb_id') if ckp_data else None
         resume = 'must' if wandb_id else None
         wandb_run_name = f"MiniMind-GRPO-Epoch-{args.epochs}-BS-{args.batch_size}-LR-{args.learning_rate}"
