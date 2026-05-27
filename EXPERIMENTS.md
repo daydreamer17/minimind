@@ -36,11 +36,40 @@ cd /root/minimind/trainer
 
 多卡训练把 `python` 换成 `torchrun`：
 
+多卡配置：
+NVIDIA GeForce RTX 4080 SUPER 32GB*4
+
 ```bash
-torchrun --nproc_per_node=2 train_xxx.py ...
+torchrun --nproc_per_node=3 train_xxx.py ...
 ```
 
-训练监控参数仍叫 `--use_wandb` / `--wandb_project`。当前大部分脚本仍直接 `import wandb`，`train_agent.py` 使用 `swanlab as wandb`，因此具体登录方式取决于你实际安装和使用的后端。
+两卡常用训练命令：
+
+```bash
+cd /root/minimind/trainer
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+
+# Pretrain
+torchrun --standalone --nproc_per_node=4 train_pretrain.py
+
+# Full SFT
+torchrun --standalone --nproc_per_node=4 train_full_sft.py
+
+# DPO / RLHF
+torchrun --standalone --nproc_per_node=4 train_dpo.py
+
+# RLAIF / RLHF-style online RL
+torchrun --standalone --nproc_per_node=4 train_ppo.py
+torchrun --standalone --nproc_per_node=4 train_grpo.py
+```
+
+四卡下 `--batch_size` 是每张卡的 batch，全局 batch 约为：
+
+```text
+global_batch = batch_size * 4 * accumulation_steps
+```
+
+训练监控参数仍叫 `--use_wandb` / `--wandb_project`。当前大部分脚本仍直接 `import wandb`，`train_agent.py` 使用 `swanlab as wandb`，因此具体登录方式取决于实际安装和使用的后端。
 
 ## 实验依赖关系
 
