@@ -131,7 +131,7 @@ python train_pretrain.py \
   --num_hidden_layers 8 \
   --max_seq_len 340 \
   --use_moe 0 \
-  --data_path /root/autodl-tmp/dir/pretrain_hq.jsonl \
+  --data_path /root/autodl-tmp/dir/pretrain_t2t.jsonl \
   --from_weight none \
   --use_wandb \
   --wandb_project MiniMind-Pretrain
@@ -146,7 +146,7 @@ python train_pretrain.py \
   --hidden_size 640 \
   --num_hidden_layers 8 \
   --use_moe 1 \
-  --data_path /root/autodl-tmp/dir/pretrain_hq.jsonl \
+  --data_path /root/autodl-tmp/dir/pretrain_t2t.jsonl \
   --use_wandb \
   --wandb_project MiniMind-Pretrain-MoE
 ```
@@ -160,7 +160,7 @@ python train_pretrain.py \
   --hidden_size 768 \
   --num_hidden_layers 8 \
   --use_moe 0 \
-  --data_path /root/autodl-tmp/dir/pretrain_hq.jsonl \
+  --data_path /root/autodl-tmp/dir/pretrain_t2t.jsonl \
   --from_resume 1 \
   --use_wandb \
   --wandb_project MiniMind-Pretrain
@@ -183,7 +183,7 @@ python train_full_sft.py \
   --num_hidden_layers 8 \
   --max_seq_len 768 \
   --use_moe 0 \
-  --data_path /root/autodl-tmp/dir/sft_mini_512.jsonl \
+  --data_path /root/autodl-tmp/dir/sft_t2t.jsonl \
   --from_weight pretrain \
   --use_wandb \
   --wandb_project MiniMind-Full-SFT
@@ -198,7 +198,7 @@ python train_full_sft.py \
   --hidden_size 768 \
   --num_hidden_layers 8 \
   --use_moe 0 \
-  --data_path /root/autodl-tmp/dir/sft_mini_512.jsonl \
+  --data_path /root/autodl-tmp/dir/sft_t2t.jsonl \
   --from_resume 1 \
   --use_wandb \
   --wandb_project MiniMind-Full-SFT
@@ -338,7 +338,7 @@ python train_ppo.py \
   --use_moe 0 \
   --max_seq_len 768 \
   --max_gen_len 1024 \
-  --data_path /root/autodl-tmp/dir/rlaif-mini.jsonl \
+  --data_path /root/autodl-tmp/dir/rlaif.jsonl \
   --from_weight full_sft \
   --reward_model_path /root/autodl-tmp/internlm2-1_8b-reward \
   --thinking_ratio 0.9 \
@@ -372,7 +372,7 @@ python train_ppo.py \
   --hidden_size 768 \
   --num_hidden_layers 8 \
   --use_moe 0 \
-  --data_path /root/autodl-tmp/dir/rlaif-mini.jsonl \
+  --data_path /root/autodl-tmp/dir/rlaif.jsonl \
   --from_resume 1 \
   --use_wandb \
   --wandb_project MiniMind-PPO
@@ -396,7 +396,7 @@ python train_grpo.py \
   --use_moe 0 \
   --max_seq_len 768 \
   --max_gen_len 1024 \
-  --data_path /root/autodl-tmp/dir/rlaif-mini.jsonl \
+  --data_path /root/autodl-tmp/dir/rlaif.jsonl \
   --from_weight full_sft \
   --num_generations 6 \
   --beta 0.1 \
@@ -457,7 +457,7 @@ python train_spo.py \
   --use_moe 0 \
   --max_seq_len 66 \
   --max_gen_len 1536 \
-  --data_path /root/autodl-tmp/dir/rlaif-mini.jsonl \
+  --data_path /root/autodl-tmp/dir/rlaif.jsonl \
   --beta 0.02 \
   --reasoning 1 \
   --reward_model_path /root/autodl-tmp/internlm2-1_8b-reward \
@@ -474,7 +474,7 @@ python train_spo.py \
   --hidden_size 512 \
   --num_hidden_layers 8 \
   --use_moe 0 \
-  --data_path /root/autodl-tmp/dir/rlaif-mini.jsonl \
+  --data_path /root/autodl-tmp/dir/rlaif.jsonl \
   --reasoning 1 \
   --from_resume 1 \
   --use_wandb \
