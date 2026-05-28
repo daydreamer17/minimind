@@ -37,13 +37,13 @@ cd /root/minimind/trainer
 多卡训练把 `python` 换成 `torchrun`：
 
 多卡配置：
-NVIDIA GeForce RTX 4080 SUPER 32GB*4
+`NVIDIA GeForce RTX 4080 SUPER 32GB*4`
 
 ```bash
-torchrun --nproc_per_node=3 train_xxx.py ...
+torchrun --nproc_per_node=4 train_xxx.py ...
 ```
 
-两卡常用训练命令：
+多卡常用训练命令（四卡为例）：
 
 ```bash
 cd /root/minimind/trainer
@@ -63,11 +63,37 @@ torchrun --standalone --nproc_per_node=4 train_ppo.py
 torchrun --standalone --nproc_per_node=4 train_grpo.py
 ```
 
-四卡下 `--batch_size` 是每张卡的 batch，全局 batch 约为：
+多卡下 `--batch_size` 是每张卡的 batch，全局 batch 约为：
 
 ```text
-global_batch = batch_size * 4 * accumulation_steps
+global_batch = batch_size * world_size * accumulation_steps
+# 当前四卡时 world_size=4；world_size 与 --nproc_per_node 保持一致
 ```
+
+四卡 dense pretrain 如果发现显存占用偏低，优先提高每卡 micro batch，并同步降低 `accumulation_steps` 来保持全局 batch 接近不变。当前 4*4080 SUPER 32GB 上，默认 `32 * 4 * 8 = 1024`；下面命令采用更保守的 `96 * 4 * 2 = 768`，比默认全局 batch 小一些，但单卡显存占用会明显高于默认配置：
+
+```bash
+cd /root/minimind/trainer
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+torchrun --standalone --nproc_per_node=4 train_pretrain.py \
+  --save_weight pretrain \
+  --epochs 2 \
+  --batch_size 96 \
+  --accumulation_steps 2 \
+  --learning_rate 5e-4 \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --max_seq_len 340 \
+  --use_moe 0 \
+  --data_path /root/autodl-tmp/dir/pretrain_t2t.jsonl \
+  --from_weight none \
+  --use_wandb \
+  --wandb_project MiniMind-Pretrain
+```
+
+如果要严格保持默认全局 batch 1024，可用 `--batch_size 128 --accumulation_steps 2`；如果 `batch_size=128` OOM，退到 `--batch_size 64 --accumulation_steps 4`。
+
+注意：`log_interval` 和 `save_interval` 按 micro step 计数。`batch_size=96` 相比默认每个 micro step 处理 3 倍 token，如果想保持接近旧配置的日志和保存频率，可加 `--log_interval 33 --save_interval 333`。精确续训 `--from_resume 1` 时不要中途改 `batch_size` 或 `accumulation_steps`，否则按 step 跳过的数据量会变化；要改 batch，建议作为新实验启动。
 
 训练监控参数仍叫 `--use_wandb` / `--wandb_project`。当前大部分脚本仍直接 `import wandb`，`train_agent.py` 使用 `swanlab as wandb`，因此具体登录方式取决于实际安装和使用的后端。
 
@@ -218,12 +244,53 @@ python train_full_sft.py \
   --wandb_project MiniMind-Full-SFT
 ```
 
+四卡推荐启动命令（`--batch_size` 是每卡 batch，全局 batch 为 `16 * 4 * 1 = 64`）：
+
+```bash
+cd /root/minimind/trainer
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+torchrun --standalone --nproc_per_node=4 train_full_sft.py \
+  --save_weight full_sft \
+  --epochs 2 \
+  --batch_size 16 \
+  --accumulation_steps 1 \
+  --learning_rate 1e-5 \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --max_seq_len 768 \
+  --use_moe 0 \
+  --data_path /root/autodl-tmp/dir/sft_t2t.jsonl \
+  --from_weight pretrain \
+  --use_wandb \
+  --wandb_project MiniMind-Full-SFT
+```
+
+如果四卡显存仍有明显余量，可以优先试 `--batch_size 24`；如果 OOM，退到 `--batch_size 8 --accumulation_steps 2`，全局 batch 仍为 64。
+
 断点续训：
 
 ```bash
 cd /root/minimind/trainer
 python train_full_sft.py \
   --save_weight full_sft \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --use_moe 0 \
+  --data_path /root/autodl-tmp/dir/sft_t2t.jsonl \
+  --from_resume 1 \
+  --use_wandb \
+  --wandb_project MiniMind-Full-SFT
+```
+
+四卡断点续训：
+
+```bash
+cd /root/minimind/trainer
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+torchrun --standalone --nproc_per_node=4 train_full_sft.py \
+  --save_weight full_sft \
+  --batch_size 16 \
+  --accumulation_steps 1 \
   --hidden_size 768 \
   --num_hidden_layers 8 \
   --use_moe 0 \
@@ -712,6 +779,105 @@ python eval_llm.py \
 --enable_thinking 0
 ```
 
+#### 常用一键自动测试
+
+`eval_llm.py` 启动后会询问 `[0] 自动测试 / [1] 手动输入`。下面命令用 `printf "0\n"` 自动选择内置样例；评估通常只需要一张卡，这里固定使用 0 号卡。
+
+Pretrain 续写冒烟：
+
+```bash
+cd /root/minimind
+printf "0\n" | CUDA_VISIBLE_DEVICES=0 python eval_llm.py \
+  --weight pretrain \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --use_moe 0 \
+  --max_new_tokens 256 \
+  --temperature 0.85 \
+  --top_p 0.95
+```
+
+Full SFT 对话评估：
+
+```bash
+cd /root/minimind
+printf "0\n" | CUDA_VISIBLE_DEVICES=0 python eval_llm.py \
+  --weight full_sft \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --use_moe 0 \
+  --max_new_tokens 512 \
+  --temperature 0.85 \
+  --top_p 0.95 \
+  --enable_thinking 0
+```
+
+DPO 后评估：
+
+```bash
+cd /root/minimind
+printf "0\n" | CUDA_VISIBLE_DEVICES=0 python eval_llm.py \
+  --weight dpo \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --use_moe 0 \
+  --max_new_tokens 512 \
+  --temperature 0.85 \
+  --top_p 0.95 \
+  --enable_thinking 0
+```
+
+PPO / GRPO / SPO 后评估：
+
+```bash
+cd /root/minimind
+printf "0\n" | CUDA_VISIBLE_DEVICES=0 python eval_llm.py \
+  --weight ppo_actor \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --use_moe 0 \
+  --max_new_tokens 512 \
+  --temperature 0.85 \
+  --top_p 0.95 \
+  --enable_thinking 1
+
+printf "0\n" | CUDA_VISIBLE_DEVICES=0 python eval_llm.py \
+  --weight grpo \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --use_moe 0 \
+  --max_new_tokens 512 \
+  --temperature 0.85 \
+  --top_p 0.95 \
+  --enable_thinking 1
+
+printf "0\n" | CUDA_VISIBLE_DEVICES=0 python eval_llm.py \
+  --weight spo \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --use_moe 0 \
+  --max_new_tokens 512 \
+  --temperature 0.85 \
+  --top_p 0.95 \
+  --enable_thinking 1
+```
+
+LoRA 权重评估：
+
+```bash
+cd /root/minimind
+printf "0\n" | CUDA_VISIBLE_DEVICES=0 python eval_llm.py \
+  --weight full_sft \
+  --lora_weight lora_identity \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --use_moe 0 \
+  --max_new_tokens 512 \
+  --temperature 0.85 \
+  --top_p 0.95
+```
+
+
 ### 12.2 Tool Calling 评测
 
 脚本：`scripts/eval_toolcall.py`
@@ -728,6 +894,23 @@ python eval_toolcall.py \
   --use_moe 0 \
   --max_new_tokens 512
 ```
+
+自动跑内置 Tool Calling 用例：
+
+```bash
+cd /root/minimind/scripts
+printf "0\n" | CUDA_VISIBLE_DEVICES=0 python eval_toolcall.py \
+  --backend local \
+  --weight full_sft \
+  --hidden_size 768 \
+  --num_hidden_layers 8 \
+  --use_moe 0 \
+  --max_new_tokens 512 \
+  --temperature 0.9 \
+  --top_p 0.9 \
+  --show_speed 1
+```
+
 
 Agent 权重：
 
@@ -784,16 +967,38 @@ python eval_llm.py \
 
 仓库 README 推荐使用 `lm-evaluation-harness` 跑 C-Eval、CMMLU、A-CLUE、TMMLU+ 等榜单。当前仓库本身没有提供一键 benchmark 脚本。
 
+原生 torch 权重需要先用 `scripts/convert_model.py` 导出为 Transformers 格式。当前脚本默认把 `../out/full_sft_768.pth` 导出到 `../minimind-3`：
+
 ```bash
-lm_eval \
+cd /root/minimind/scripts
+python convert_model.py
+```
+
+导出后跑 C-Eval / CMMLU 示例：
+
+```bash
+cd /root/minimind
+CUDA_VISIBLE_DEVICES=0 lm_eval \
   --model hf \
-  --model_args pretrained=<填写模型路径>,device=cuda,dtype=auto \
+  --model_args pretrained=./minimind-3,device=cuda,dtype=auto \
+  --tasks ceval*,cmmlu* \
+  --batch_size 8 \
+  --trust_remote_code
+```
+
+只跑 C-Eval：
+
+```bash
+cd /root/minimind
+CUDA_VISIBLE_DEVICES=0 lm_eval \
+  --model hf \
+  --model_args pretrained=./minimind-3,device=cuda,dtype=auto \
   --tasks ceval* \
   --batch_size 8 \
   --trust_remote_code
 ```
 
-原生 torch 权重需要先用 `scripts/convert_model.py` 导出为 Transformers 格式。MoE 权重应走 `convert_torch2transformers_minimind`，不要走 Llama 兼容转换。
+MoE 权重应走 `convert_torch2transformers_minimind`，不要走 Llama 兼容转换。
 
 ## 13. 服务与 Demo
 
